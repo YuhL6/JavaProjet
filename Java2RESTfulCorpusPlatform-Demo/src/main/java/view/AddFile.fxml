@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<?import java.lang.*?>
+<?import java.util.*?>
+<?import javafx.scene.*?>
+<?import javafx.scene.control.*?>
+<?import javafx.scene.layout.*?>
+
+<AnchorPane prefHeight="217.0" prefWidth="368.0" xmlns="http://javafx.com/javafx/8" xmlns:fx="http://javafx.com/fxml/1" fx:controller="view.AddFile">
+   <children>
+      <VBox alignment="CENTER" layoutX="54.0" layoutY="14.0" prefHeight="158.0" prefWidth="260.0" spacing="5.0">
+         <children>
+            <HBox alignment="CENTER_RIGHT" prefHeight="39.0" prefWidth="260.0">
+               <children>
+                  <Label text="Name：  " />
+                  <TextField prefHeight="23.0" prefWidth="190.0" />
+               </children>
+            </HBox>
+            <HBox alignment="CENTER_RIGHT" prefHeight="48.0" prefWidth="210.0" spacing="5.0">
+               <children>
+                  <Label text="Class:    " />
+                  <TextField prefHeight="23.0" prefWidth="190.0" />
+               </children>
+            </HBox>
+            <HBox alignment="CENTER_RIGHT" prefHeight="48.0" prefWidth="210.0" spacing="5.0">
+               <children>
+                  <Label text="Version:  " />
+                  <TextField prefHeight="23.0" prefWidth="190.0" />
+               </children>
+            </HBox>
+            <HBox alignment="CENTER_RIGHT" prefHeight="46.0" prefWidth="268.0" spacing="5.0">
+               <children>
+                  <Label text="Comment:" />
+                  <TextArea prefHeight="46.0" prefWidth="190.0" />
+               </children>
+            </HBox>
+         </children>
+      </VBox>
+      <Button layoutX="314.0" layoutY="179.0" mnemonicParsing="false" text="OK" />
+   </children>
+</AnchorPane>

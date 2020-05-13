@@ -1,0 +1,16 @@
+util/MainController.class
+model/Document.class
+util/FailureCause.class
+demo/DemoServer.class
+util/Utils.class
+Client.class
+util/SuccessResponse.class
+demo/Course.class
+util/FailureResponse.class
+demo/DemoDBHelper.class
+dao/TextDao.class
+demo/DemoClient.class
+util/Response.class
+util/MainController$1.class
+Server.class
+service/TextService.class
