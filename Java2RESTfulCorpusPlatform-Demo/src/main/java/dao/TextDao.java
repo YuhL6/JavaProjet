@@ -90,8 +90,6 @@ public class TextDao {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        byte[] bytes = decoder.decode(res);
-        res = bytes.toString();
         return res;
     }
 
@@ -110,5 +108,6 @@ public class TextDao {
         }
         return res;
     }
+
 
 }

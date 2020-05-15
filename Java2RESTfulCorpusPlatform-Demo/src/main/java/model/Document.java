@@ -4,6 +4,18 @@ import com.alibaba.fastjson.annotation.JSONField;
 import com.fasterxml.jackson.databind.annotation.JsonAppend;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.beans.property.StringProperty;
+import javafx.scene.control.CheckBox;
+import org.apache.tika.parser.txt.CharsetDetector;
+import org.apache.tika.parser.txt.CharsetMatch;
+
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
+import java.io.UnsupportedEncodingException;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 public class Document {
     @JSONField
@@ -14,9 +26,12 @@ public class Document {
     private String name;
     @JSONField
     private String comment;
+    @JSONField(serialize = false)
+    private boolean selected = false;
     // private StringProperty content;
     // private StringProperty version;
     // private StringProperty classify;
+    public Document(){}
 
     public Document(String hash, byte[] bytes, String name, String comment){
         this.hash = hash;
@@ -75,8 +90,18 @@ public class Document {
         return bytes;
     }
 
-    public void setBytes(byte[] bytes) {
+    public void setBytes(byte[] bytes) throws UnsupportedEncodingException {
+        // check the encoding and transform into UTF-8
+        CharsetDetector charsetDetector = new CharsetDetector();
+        charsetDetector.setText(bytes);
+        CharsetMatch charsetMatch = charsetDetector.detect();
+        String encoding = charsetMatch.getName();
+        if (!encoding.equalsIgnoreCase("UTF-8")){
+            String content = new String(bytes, encoding);
+            bytes = content.getBytes(StandardCharsets.UTF_8);
+        }
         this.bytes = bytes;
+        setHash();
     }
 
     public String getComment() {
@@ -102,6 +127,31 @@ public class Document {
 
     public void setName(String name){
         this.name = name;
+    }
+
+    public void setHash(String hash){
+        this.hash = hash;
+    }
+
+    public void setHash(){
+        if (bytes == null || bytes.length == 0){
+            return;
+        }
+        try{
+            MessageDigest messageDigest = MessageDigest.getInstance("MD5");
+            messageDigest.update(bytes, 0, bytes.length);
+            hash = new BigInteger(1, messageDigest.digest()).toString();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void setSelected(boolean selected){
+        this.selected = selected;
+    }
+
+    public boolean getSelected(){
+        return selected;
     }
 
 }

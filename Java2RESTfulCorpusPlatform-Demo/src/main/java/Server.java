@@ -3,7 +3,9 @@ import dao.TextDao;
 import io.javalin.Javalin;
 import model.Document;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Arrays;
 
 //import dao.TextDao;
 //import io.javalin.Javalin;
@@ -63,10 +65,11 @@ public class Server{
             ctx.result(dao.getRough(ctx.pathParam("hash")));
         });
         app.get("/download/:hash", ctx -> {
+            System.out.println(ctx.body());
             ctx.result(dao.getDetail(ctx.pathParam("hash")));
         });
-        app.post("/upload/:body", ctx -> {
-            Document d = JSON.parseObject(ctx.pathParam("body"), Document.class);
+        app.post("/upload", ctx -> {
+            Document d = JSON.parseObject(ctx.body(), Document.class);
             dao.insert(d);
         });
         app.get("/exists/:hash", ctx -> {
