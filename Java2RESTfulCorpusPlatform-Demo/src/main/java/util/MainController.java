@@ -9,20 +9,24 @@ import javafx.event.Event;
 import javafx.event.EventHandler;
 import javafx.event.EventType;
 import javafx.fxml.FXML;
+import javafx.fxml.FXMLLoader;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.stage.DirectoryChooser;
+import javafx.stage.FileChooser;
+import javafx.stage.Stage;
 import model.Document;
 import org.apache.http.client.fluent.Request;
 import org.checkerframework.checker.units.qual.C;
 
 import javax.print.Doc;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Base64;
-import java.util.List;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 public class MainController {
     private String endpoint = "http://localhost:7002";
-    private ObservableList<Document> documents = FXCollections.observableArrayList();
     private List<Document> chosenList = new ArrayList<>();
     @FXML
     private TableView<Document> tableView;
@@ -36,6 +40,8 @@ public class MainController {
     private TextField textField;
     @FXML
     private TextArea textArea;
+    @FXML
+    private Button downloadButton;
     private ObservableList<Document> observableList = FXCollections.observableArrayList();
 
     @FXML
@@ -44,8 +50,7 @@ public class MainController {
             // get information from server, the difficulty is how to transfer object between sockets, try fastjson.
             String res = Request.Get(endpoint + "/").execute().returnContent().asString();
             List<Document> list = JSON.parseArray(res, Document.class);
-            for (Document d: list)
-                observableList.add(d);
+            observableList.addAll(list);
         }catch (IOException e){
             e.printStackTrace();
             System.out.println("Cannot connect to server");
@@ -57,20 +62,29 @@ public class MainController {
         showDocumentContent(null);
         tableView.getSelectionModel().selectedItemProperty().addListener(
                 (observable, oldValue, newValue) -> showDocumentContent(newValue));
+        refresh();
+    }
+
+    private void refresh(){
         checkColumn.setCellFactory(col ->{
             TableCell<Document, String> tableCell = new TableCell<Document, String>(){
                 @Override
                 public void updateItem(String item, boolean empty){
                     super.updateItem(item, empty);
                     if (!empty) {
+                        Document document = tableView.getItems().get(this.getIndex());
                         CheckBox checkBox = new CheckBox();
-                        IndexedCell cell = this;
+                        checkBox.setSelected(document.getSelected());
                         checkBox.selectedProperty().addListener(event -> {
-                            if (checkBox.isSelected()) {
-                                chosenList.add(observableList.get(cell.getIndex()));
-                            }else {
-                                chosenList.remove(observableList.get(cell.getIndex()));
-                            }
+                            try {
+                                if (!chosenList.contains(document)) {
+                                    chosenList.add(document);
+                                    document.setSelected(true);
+                                }else {
+                                    chosenList.remove(document);
+                                    document.setSelected(false);
+                                }
+                            }catch (Exception e){System.out.println("error");}
                         });
                         this.setGraphic(checkBox);
                     }else{
@@ -86,6 +100,8 @@ public class MainController {
             textArea.setText("");
             return;
         }
+
+
         Request.Get(endpoint + "/show" + document.getHash());
     }
 
@@ -104,24 +120,80 @@ public class MainController {
         return 0.0;
     }
 
-    public boolean upload(byte[] bytes) throws IOException {
+    @FXML
+    public void uploadFile() throws IOException {
+        File file;
+        String fileName;
+        try {
+            file = fileBrowserHandler();
+            fileName = file.getName();
+        }catch (Exception e){
+            return;
+        }
+        String comment = new String();
+        byte[] bytes = new byte[(int) file.length()];
+        FXMLLoader fxmlLoader = new FXMLLoader();
+        fxmlLoader.setLocation(getClass().getClassLoader().getResource("AddFile.fxml"));
+        Parent root = fxmlLoader.load();
+        Stage stage = new Stage();
+        AddFileController controller = fxmlLoader.getController();
+        controller.setFileName(fileName);
+        controller.setComment(comment);
+        controller.setStage(stage);
+        stage.setScene(new Scene(root));
+        stage.showAndWait();
+        if (controller.getOK()) {
+            FileInputStream fileInputStream = new FileInputStream(file);
+            fileInputStream.read(bytes);
+            Document d = new Document();
+            d.setBytes(bytes);
+            d.setName(fileName);
+            d.setComment(comment);
+            if (upload(d))
+                observableList.add(d);
+        }
+    }
+
+    @FXML
+    public void downloadFile() throws IOException {
+        DirectoryChooser directoryChooser = new DirectoryChooser();
+        directoryChooser.setTitle("Select the path");
+        Stage stage = new Stage();
+        String path = directoryChooser.showDialog(stage).getAbsolutePath();
+        String res;
+        for (Document d: chosenList){
+            res = Request.Get(endpoint + "/download/" + d.getHash()).execute().returnContent().asString();
+            File file = new File(path + File.separator + d.getName());
+            int i = 1;
+            while (file.exists()){
+                file = new File(path + File.separator + d.getName() + i);
+            }
+            BufferedWriter writer = new BufferedWriter(new FileWriter(file));
+            writer.write(res);
+            writer.close();
+            d.setSelected(false);
+        }
+        chosenList.clear();
+        refresh();
+    }
+
+    public boolean upload(Document d) throws IOException {
         // upload file
-        String res = Request.Post(endpoint+"/upload/").bodyByteArray(bytes).execute().returnContent().asString();
+        String s = JSON.toJSONString(d);
+        String res = Request.Post(endpoint+"/upload").bodyByteArray(s.getBytes(StandardCharsets.UTF_8)).execute().returnContent().asString();
         return true;
     }
 
-    public boolean download() throws IOException {
-        // clear the selected
-        // download file/path
-        // store the bytes
-        String res;
-        for (Document d: chosenList) {
-            res = Request.Get(endpoint + "/download/" + d.getHash()).execute().returnContent().asString();
-            Base64.Decoder decoder = Base64.getDecoder();
-            byte[] bytes = decoder.decode(res);
-
+    @FXML
+    public File fileBrowserHandler() {
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Select a file");
+        Stage stage = new Stage();
+        try {
+            return fileChooser.showOpenDialog(stage);
+        }catch (Exception e){
+            return null;
         }
-        return true;
     }
 
 }
