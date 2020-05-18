@@ -18,14 +18,12 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 public class Document {
-    @JSONField
+    @JSONField(name = "md5")
     private String hash;
     @JSONField
-    private byte[] bytes;
+    private String content;
     @JSONField
     private String name;
-    @JSONField
-    private String comment;
     @JSONField(serialize = false)
     private boolean selected = false;
     // private StringProperty content;
@@ -33,18 +31,12 @@ public class Document {
     // private StringProperty classify;
     public Document(){}
 
-    public Document(String hash, byte[] bytes, String name, String comment){
+    public Document(String hash, String content, String name){
         this.hash = hash;
         this.name = name;
-        this.comment = comment;
-        this.bytes = bytes;
+        this.content = content;
         // this.version = new SimpleStringProperty(version);
         // this.classify = new SimpleStringProperty(classify);
-    }
-
-    @Override
-    public String toString(){
-        return "Document{name='" + String.valueOf(name) + "', comment='" + String.valueOf(comment) + "'}";
     }
 
     /*public String getVersion() {
@@ -86,40 +78,28 @@ public class Document {
         return hash;
     }
 
-    public byte[] getBytes() {
-        return bytes;
+    public String getContent() {
+        return content;
     }
 
-    public void setBytes(byte[] bytes) throws UnsupportedEncodingException {
+    public void setContent(String content) {
         // check the encoding and transform into UTF-8
-        CharsetDetector charsetDetector = new CharsetDetector();
-        charsetDetector.setText(bytes);
+        /*CharsetDetector charsetDetector = new CharsetDetector();
+        String s = new String(content, StandardCharsets.UTF_8)
+        charsetDetector.setText(content.getBytes());
         CharsetMatch charsetMatch = charsetDetector.detect();
         String encoding = charsetMatch.getName();
         if (!encoding.equalsIgnoreCase("UTF-8")){
             String content = new String(bytes, encoding);
             bytes = content.getBytes(StandardCharsets.UTF_8);
-        }
-        this.bytes = bytes;
+        }*/
+        this.content = content;
         setHash();
-    }
-
-    public String getComment() {
-        return String.valueOf(comment);
-    }
-
-    public void setComment(String comment) {
-        this.comment = comment;
     }
 
     public StringProperty nameProperty() {
         return new SimpleStringProperty(name);
     }
-
-    public StringProperty commentProperty() {
-        return new SimpleStringProperty(comment);
-    }
-
 
     public String getName(){
         return String.valueOf(name);
@@ -134,12 +114,12 @@ public class Document {
     }
 
     public void setHash(){
-        if (bytes == null || bytes.length == 0){
+        if (content == null || content.equalsIgnoreCase("")){
             return;
         }
         try{
             MessageDigest messageDigest = MessageDigest.getInstance("MD5");
-            messageDigest.update(bytes, 0, bytes.length);
+            messageDigest.update(content.getBytes(StandardCharsets.UTF_8), 0, content.getBytes().length);
             hash = new BigInteger(1, messageDigest.digest()).toString();
         } catch (NoSuchAlgorithmException e) {
             e.printStackTrace();

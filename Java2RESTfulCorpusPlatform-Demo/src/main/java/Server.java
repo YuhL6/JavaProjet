@@ -1,7 +1,11 @@
 import com.alibaba.fastjson.JSON;
 import dao.TextDao;
 import io.javalin.Javalin;
+import io.javalin.http.Context;
 import model.Document;
+import util.FailureCause;
+import util.FailureResponse;
+import util.SuccessResponse;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -59,25 +63,59 @@ public class Server{
         dao.getConnection();
         app.get("/", ctx -> {
             String str = dao.getAll();
-            ctx.result(str);
-        });
-        app.get("/show/:hash", ctx -> {
-            ctx.result(dao.getRough(ctx.pathParam("hash")));
+            sendResult(ctx, "files", str, null);
         });
         app.get("/download/:hash", ctx -> {
-            System.out.println(ctx.body());
-            ctx.result(dao.getDetail(ctx.pathParam("hash")));
+            String result = dao.getDetail(ctx.pathParam("hash"));
+            sendResult(ctx, "content", result, FailureCause.FILE_NOT_FOUND);
         });
         app.post("/upload", ctx -> {
             Document d = JSON.parseObject(ctx.body(), Document.class);
-            dao.insert(d);
+            Document d1 = new Document();
+            d1.setContent(d.getContent());
+            if (!d1.getHash().equalsIgnoreCase(d.getHash())){
+                sendFailureResult(ctx, "success", false, FailureCause.HASH_NOT_MATCH);
+            }else if (dao.hasHash(d.getHash()))
+                sendFailureResult(ctx, "success", false, FailureCause.ALREADY_EXIST);
+            else{
+                dao.insert(d);
+                sendResult(ctx, "success", "true", null);
+            }
         });
         app.get("/exists/:hash", ctx -> {
-            String s = dao.getRough(ctx.pathParam("hash"));
+            String s = dao.getDocument(ctx.pathParam("hash"));
             if (s.equals(""))
-                ctx.result("false");
-            else
-                ctx.result("true");
+                sendSuccessResult(ctx, "exists", false);
+            else{
+                SuccessResponse response = new SuccessResponse();
+                response.getResult().put("exists", true);
+                response.getResult().put("fileName", s);
+                ctx.result(response.toString());
+            }
         });
+
+    }
+
+    private static void sendSuccessResult(Context ctx, String key, boolean value){
+        SuccessResponse successResponse = new SuccessResponse();
+        successResponse.getResult().put(key, value);
+        ctx.result(successResponse.toString());
+    }
+
+    private static void sendFailureResult(Context ctx, String key, boolean value, FailureCause failureCause){
+        FailureResponse failureResponse = new FailureResponse(failureCause);
+        failureResponse.getResult().put(key, value);
+        ctx.result(failureResponse.toString());
+    }
+
+    private static void sendResult(Context ctx, String key, String value, FailureCause failureCause) {
+        if (value.equalsIgnoreCase("")){
+            FailureResponse failureResponse = new FailureResponse(failureCause);
+            ctx.result(failureResponse.toString());
+        }else {
+            SuccessResponse successResponse = new SuccessResponse();
+            successResponse.getResult().put(key, value);
+            ctx.result(successResponse.toString());
+        }
     }
 }

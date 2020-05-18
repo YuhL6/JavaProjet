@@ -6,6 +6,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.sql2o.Sql2o;
 import ucar.units.Base;
 
+import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -14,8 +15,6 @@ import java.util.Random;
 
 public class TextDao {
     private Connection con;
-    private Base64.Decoder decoder = Base64.getDecoder();
-    private Base64.Encoder encoder = Base64.getEncoder();
     public void getConnection(){
         try {
             // CLASSPATH must be properly set, for instance on
@@ -35,8 +34,8 @@ public class TextDao {
             statement.setQueryTimeout(30); // set timeout to 30 sec.
 
             // create table
-            statement.executeUpdate("create table if not exists document (hash Char(100) primary key, name Char(50) not null, " +
-                    "comment Char(100), bytes Text);");
+            // statement.executeUpdate("drop table if exists  document");
+            statement.executeUpdate("create table if not exists document (hash Char(100) primary key, fileName Char(50) not null, content Text);");
 
         } catch (Exception e) {
             System.err.println("openDB" + e.getMessage());
@@ -46,13 +45,12 @@ public class TextDao {
 
     public void insert(Document d){
         // insert the information of document into databases
-        String sql = "insert into document (hash, name, comment, bytes) values (?, ?, ?, ?);";
+        String sql = "insert into document (hash, fileName, content) values (?, ?, ?);";
         try{
-            PreparedStatement statement = con.prepareStatement(sql);
+            PreparedStatement statement = con. prepareStatement(sql);
             statement.setString(1, d.getHash());
             statement.setString(2, d.getName());
-            statement.setString(3, d.getComment());
-            statement.setBytes(4, d.getBytes());
+            statement.setString(3, d.getContent());
             statement.execute();
         } catch (SQLException e) {
             e.printStackTrace();
@@ -61,13 +59,14 @@ public class TextDao {
 
     public String getAll(){
         // get information of all documents from databases
-        String sql = "select hash, name, comment from document;";
+        String sql = "select hash, content, fileName from document;";
         List<Document> list = new ArrayList<>();
         try{
             PreparedStatement statement = con.prepareStatement(sql);
             ResultSet set = statement.executeQuery();
             while (set.next()){
-                list.add(new Document(set.getString(1), new byte[0], set.getString(2), set.getString(3)));
+                String preview = set.getString(2);
+                list.add(new Document(set.getString(1), preview.substring(0, 100), set.getString(3)));
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -75,9 +74,28 @@ public class TextDao {
         return JSON.toJSONString(list);
     }
 
-    public String getRough(String s){
-        // get a roughly content
-        String sql = "select bytes from document where hash = ?;";
+    public String getDocument(String hash){
+        /* return the name of the file */
+        String sql = "select fileName from document where hash = ?";
+        String name = "";
+        try{
+            PreparedStatement statement = con.prepareStatement(sql);
+            statement.setString(1, hash);
+            ResultSet set = statement.executeQuery();
+            if (set.next()){
+                name = set.getString(1);
+            }
+        } catch (SQLException throwables) {
+            throwables.printStackTrace();
+        }
+        if (name.equalsIgnoreCase(""))
+            return "";
+        return name;
+    }
+
+    public String getDetail(String s){
+        // get a detailed content, used when download
+        String sql = "select content from document where hash = ?";
         String res = "";
         try{
             PreparedStatement statement = con.prepareStatement(sql);
@@ -85,28 +103,18 @@ public class TextDao {
             ResultSet set = statement.executeQuery();
             if (set.next())
                 res = String.valueOf(set.getString(1));
-            else
-                return "";
         } catch (SQLException e) {
             e.printStackTrace();
         }
         return res;
     }
 
-    public String getDetail(String s){
-        // get a detailed content, used when download
-        String sql = "select bytes from document where hash = ?";
-        String res = "";
-        try{
-            PreparedStatement statement = con.prepareStatement(sql);
-            statement.setString(1, s);
-            ResultSet set = statement.executeQuery();
-            if (set.next())
-                res = String.valueOf(set.getString(1));
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return res;
+    public boolean hasHash(String hash){
+        String str = getDocument(hash);
+        if (str.equalsIgnoreCase(""))
+            return false;
+        else
+            return true;
     }
 
 

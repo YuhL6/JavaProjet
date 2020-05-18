@@ -3,10 +3,7 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
-import util.MainController;
-import org.apache.http.client.fluent.Request;
-
-import java.io.IOException;
+import controller.MainController;
 
 //
 //import com.fasterxml.jackson.databind.ObjectMapper;
