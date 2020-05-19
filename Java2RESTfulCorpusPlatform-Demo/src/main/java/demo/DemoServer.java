@@ -51,7 +51,7 @@ public class DemoServer {
             Response response = new SuccessResponse();
             // and put the items into the response by using getResult().put
             // To those curious, it's operating Jackson's JSON node underneath.
-            response.getResult().put("score", "100");
+            // response.getResult().put("score", "100");
             // finally send out the response
             ctx.json(response);
         });

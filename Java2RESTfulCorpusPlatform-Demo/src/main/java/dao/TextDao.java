@@ -6,6 +6,7 @@ import org.apache.commons.lang3.RandomStringUtils;
 import org.sql2o.Sql2o;
 import ucar.units.Base;
 
+import javax.swing.*;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.util.ArrayList;
@@ -57,7 +58,7 @@ public class TextDao {
         }
     }
 
-    public String getAll(){
+    public List<Document> getAll(){
         // get information of all documents from databases
         String sql = "select hash, content, fileName from document;";
         List<Document> list = new ArrayList<>();
@@ -71,7 +72,7 @@ public class TextDao {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-        return JSON.toJSONString(list);
+        return list;
     }
 
     public String getDocument(String hash){

@@ -20,7 +20,7 @@ import java.security.NoSuchAlgorithmException;
 public class Document {
     @JSONField(name = "md5")
     private String hash;
-    @JSONField
+    @JSONField(name = "preview")
     private String content;
     @JSONField
     private String name;
@@ -94,7 +94,8 @@ public class Document {
             bytes = content.getBytes(StandardCharsets.UTF_8);
         }*/
         this.content = content;
-        setHash();
+        if (hash == null || hash.equalsIgnoreCase(""))
+            setHash();
     }
 
     public StringProperty nameProperty() {

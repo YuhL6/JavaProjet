@@ -1,4 +1,5 @@
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
 import dao.TextDao;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
@@ -10,6 +11,7 @@ import util.SuccessResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 //import dao.TextDao;
 //import io.javalin.Javalin;
@@ -62,60 +64,65 @@ public class Server{
         TextDao dao = new TextDao();
         dao.getConnection();
         app.get("/", ctx -> {
-            String str = dao.getAll();
-            sendResult(ctx, "files", str, null);
+            List<Document> list = dao.getAll();
+            SuccessResponse response = new SuccessResponse();
+            response.getResult().setList(list);
+            String res = response.toString();
+            ctx.result(res);
         });
         app.get("/download/:hash", ctx -> {
             String result = dao.getDetail(ctx.pathParam("hash"));
-            sendResult(ctx, "content", result, FailureCause.FILE_NOT_FOUND);
+            if (result.equalsIgnoreCase("")){
+                FailureResponse failureResponse = new FailureResponse(FailureCause.FILE_NOT_FOUND);
+                ctx.result(failureResponse.toString());
+            }else {
+                SuccessResponse successResponse = new SuccessResponse();
+                successResponse.getResult().setContent(result);
+                ctx.result(successResponse.toString());
+            }
         });
         app.post("/upload", ctx -> {
             Document d = JSON.parseObject(ctx.body(), Document.class);
             Document d1 = new Document();
             d1.setContent(d.getContent());
-            if (!d1.getHash().equalsIgnoreCase(d.getHash())){
-                sendFailureResult(ctx, "success", false, FailureCause.HASH_NOT_MATCH);
-            }else if (dao.hasHash(d.getHash()))
-                sendFailureResult(ctx, "success", false, FailureCause.ALREADY_EXIST);
+            try {
+                if (!d1.getHash().equalsIgnoreCase(d.getHash())) {
+                    sendFailureResult(ctx, FailureCause.HASH_NOT_MATCH);
+                }
+            }catch(Exception e){
+                // the content is null, which is not allowed, should be detected by front-end, which means user
+                // not use front-end to get to this
+                return;
+            }
+            if (dao.hasHash(d.getHash()))
+                sendFailureResult(ctx, FailureCause.ALREADY_EXIST);
             else{
                 dao.insert(d);
-                sendResult(ctx, "success", "true", null);
+                SuccessResponse successResponse = new SuccessResponse();
+                successResponse.getResult().setSuccess(true);
+                ctx.result(successResponse.toString());
             }
         });
         app.get("/exists/:hash", ctx -> {
             String s = dao.getDocument(ctx.pathParam("hash"));
-            if (s.equals(""))
-                sendSuccessResult(ctx, "exists", false);
+            if (s.equals("")) {
+                SuccessResponse response = new SuccessResponse();
+                response.getResult().setExists(false);
+                ctx.result(response.toString());
+            }
             else{
                 SuccessResponse response = new SuccessResponse();
-                response.getResult().put("exists", true);
-                response.getResult().put("fileName", s);
+                response.getResult().setExists(true);
+                response.getResult().setFileName(s);
                 ctx.result(response.toString());
             }
         });
 
     }
 
-    private static void sendSuccessResult(Context ctx, String key, boolean value){
-        SuccessResponse successResponse = new SuccessResponse();
-        successResponse.getResult().put(key, value);
-        ctx.result(successResponse.toString());
-    }
-
-    private static void sendFailureResult(Context ctx, String key, boolean value, FailureCause failureCause){
+    private static void sendFailureResult(Context ctx, FailureCause failureCause){
         FailureResponse failureResponse = new FailureResponse(failureCause);
-        failureResponse.getResult().put(key, value);
+        failureResponse.getResult().setSuccess(false);
         ctx.result(failureResponse.toString());
-    }
-
-    private static void sendResult(Context ctx, String key, String value, FailureCause failureCause) {
-        if (value.equalsIgnoreCase("")){
-            FailureResponse failureResponse = new FailureResponse(failureCause);
-            ctx.result(failureResponse.toString());
-        }else {
-            SuccessResponse successResponse = new SuccessResponse();
-            successResponse.getResult().put(key, value);
-            ctx.result(successResponse.toString());
-        }
     }
 }

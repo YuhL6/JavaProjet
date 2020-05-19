@@ -43,7 +43,7 @@ public class MainController {
             // get information from server, the difficulty is how to transfer object between sockets, try fastjson.
             String res = Request.Get(endpoint + "/").execute().returnContent().asString();
             Response response = JSON.parseObject(res, Response.class);
-            List<Document> list = JSON.parseArray(response.getResult().get("files").asText(), Document.class);
+            List<Document> list = response.getResult().getList();
             observableList.addAll(list);
         }catch (IOException e){
             showInfo("Cannot connect to server");
@@ -131,11 +131,12 @@ public class MainController {
         // the file not found in local host, ask server to search it
         // if in the server, pass the document information to localhost
         String res = Request.Get(endpoint + "/exists/" + document.getHash()).execute().returnContent().asString();
+        System.out.println(res);
         Response response = JSON.parseObject(res, Response.class);
-        if (!response.getResult().get("exists").asBoolean()){
+        if (!response.getResult().getExists()){
             showInfo("The file not exists");
         }else {
-            document.setName(response.getResult().get("fileName").asText());
+            document.setName(response.getResult().getFileName());
             observableList.add(document);
             tableView.getSelectionModel().select(document);
         }
@@ -181,7 +182,11 @@ public class MainController {
         stage.showAndWait();
         if (controller.getOK()) {
             FileInputStream fileInputStream = new FileInputStream(file);
-            fileInputStream.read(bytes);
+            int size = fileInputStream.read(bytes);
+            if (size == 0){
+                showInfo("None Content is not allowed");
+                return;
+            }
             Document d = new Document();
             d.setContent(new String(bytes));
             d.setName(controller.getFileName());
@@ -228,8 +233,11 @@ public class MainController {
         Stage stage = new Stage();
         String path = directoryChooser.showDialog(stage).getAbsolutePath();
         String res;
+        List<String[]> errors = new ArrayList<>();  // store the error information, the first is filename, second is file hash, third is message
         for (Document d: chosenList){
+            System.out.println(d.getHash());
             res = Request.Get(endpoint + "/download/" + d.getHash()).execute().returnContent().asString();
+            System.out.println(res);
             File file = new File(path + File.separator + d.getName());
             int i = 1;
             String name = d.getName().substring(0, d.getName().lastIndexOf("."));
@@ -239,11 +247,17 @@ public class MainController {
             }
             BufferedWriter writer = new BufferedWriter(new FileWriter(file));
             Response response = JSON.parseObject(res, Response.class);
-            writer.write(response.getResult().get("content").asText());
+            if (response.getCode() != 0){
+                errors.add(new String[]{d.getName(), d.getHash(), response.getMessage()});
+                continue;
+            }
+            writer.write(response.getResult().getContent());
             writer.close();
             d.setSelected(false);
         }
         chosenList.clear();
+        for (String[] error: errors)
+            showInfo(error[0] + " " + error[2]);
         showInfo("Download Finish");
         refresh();
     }
@@ -252,8 +266,9 @@ public class MainController {
         // upload file
         String s = JSON.toJSONString(d);
         String res = Request.Post(endpoint+"/upload").bodyByteArray(s.getBytes(StandardCharsets.UTF_8)).execute().returnContent().asString();
+        System.out.println(res);
         Response response = JSON.parseObject(res, Response.class);
-        if (response.getResult().get("success").asBoolean()) {
+        if (response.getResult().getSuccess()) {
             showInfo("Upload Successfully");
             observableList.add(d);
         }
