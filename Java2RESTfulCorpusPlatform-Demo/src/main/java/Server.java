@@ -1,66 +1,32 @@
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
 import dao.TextDao;
 import io.javalin.Javalin;
 import io.javalin.http.Context;
 import model.Document;
+import org.apache.commons.lang3.StringUtils;
 import util.FailureCause;
 import util.FailureResponse;
 import util.SuccessResponse;
-
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
-//import dao.TextDao;
-//import io.javalin.Javalin;
-//import io.swagger.v3.oas.models.info.Info;
-//import io.javalin.plugin.openapi.OpenApiOptions;
-//import io.javalin.plugin.openapi.OpenApiPlugin;
-//import io.javalin.plugin.openapi.ui.ReDocOptions;
-//import io.javalin.plugin.openapi.ui.SwaggerOptions;
-//import org.sql2o.Sql2o;
-//import service.TextService;
-//
-//public class Server {
-//    public static void main(String[] args) throws ClassNotFoundException {
-//        //TODO:connect database
-//
-//
-//
-//
-//        TextDao dao;
-//        TextService service = new TextService(dao);
-//
-//        Javalin app = Javalin.create(config -> {
-//            config.registerPlugin(getConfiguredOpenApiPlugin());
-//        }).start(7001);
-//        app.get("/", ctx -> ctx.result("Welcome to RESTful Corpus Platform"));
-//        // handle exist
-//        app.get("/files/:md5/exists", service::handleExists);
-//        // handle upload
-//        app.post("/files/:md5", service::handleUpload);
-//        // handle compare
-//        app.get("/files/:md51/compare/:md52", service::handleCompare);
-//        // handle download
-//        app.get("/files/:md5", service::handleDownload);
-//    }
-//
-//
-//    private static OpenApiPlugin getConfiguredOpenApiPlugin() {
-//        Info info = new Info().version("1.0").description("RESTful Corpus Platform API");
-//        OpenApiOptions options = new OpenApiOptions(info)
-//                .activateAnnotationScanningFor("cn.edu.sustech.java2.RESTfulCorpusPlatform")
-//                .path("/swagger-docs") // endpoint for OpenAPI json
-//                .swagger(new SwaggerOptions("/swagger-ui")); // endpoint for swagger-ui
-////                .reDoc(new ReDocOptions("/redoc")); // endpoint for redoc
-//        return new OpenApiPlugin(options);
-//    }
-//}
+/**
+ * A server based on JavaLin connects with front-ends and database. Port number is 7002. <br>
+ *     The <code>Server</code> supports following urls:<br>
+ *         &ensp;1. <code>/download/hash</code>: hash is the md5 hash value of the file user wants to download. Server would
+ *         return the String content in UTF-8 encoding.<br>
+ *         &ensp;2. <code>/exists/hash</code>: hash is the md5 hash value of the file user wants to check whether exists or not. Server
+ *         would return a boolean value.<br>
+ *         &ensp;3. <code>/compare/hash1/hash2</code>:hash1 and hash2 is the md5 hash value of the files user wants to compare.
+ *         Server would return two values: simple similarity and Levenshtein distance.<br>
+ *         &ensp;4. <code>/upload/</code>: user is expected to upload a JSON format file which can be deserialize to Document.class by FastJSON.<br>
+ *         &ensp;5. <code>/</code>: server would return a list of documents in JSON format. <B>Note</B>: when the content's
+ *         length is larger than 100, server would return a preview of the content, i.e. the substring of 100 chars.
+ */
+
 public class Server{
     public static void main(String[] args){
-        Javalin app = Javalin.create().start(7002);
+        int portNumber = 7002;
+        Javalin app = Javalin.create().start(portNumber);
         TextDao dao = new TextDao();
         dao.getConnection();
         app.get("/", ctx -> {
@@ -117,12 +83,33 @@ public class Server{
                 ctx.result(response.toString());
             }
         });
-
+        app.get("/compare/:hash1/:hash2", context -> {
+            String s1 = context.pathParam("hash1");
+            String s2 = context.pathParam("hash2");
+            String text1 = dao.getDetail(s1);
+            String text2 = dao.getDetail(s2);
+            int ldst = StringUtils.getLevenshteinDistance(text1, text2);
+            double sim = simple_similarity(text1, text2);
+            SuccessResponse successResponse = new SuccessResponse();
+            successResponse.getResult().setSimple_similarity(sim);
+            successResponse.getResult().setLevenshtein_distance(ldst);
+            context.result(successResponse.toString());
+        });
     }
 
     private static void sendFailureResult(Context ctx, FailureCause failureCause){
         FailureResponse failureResponse = new FailureResponse(failureCause);
         failureResponse.getResult().setSuccess(false);
         ctx.result(failureResponse.toString());
+    }
+
+    private static double simple_similarity(String text1, String text2){
+        int length = Math.min(text1.length(), text2.length());
+        int similar = 0;
+        for (int i = 0; i< length; i++){
+            if (text1.toLowerCase().charAt(i) == text2.toLowerCase().charAt(i))
+                similar++;
+        }
+        return similar*1.0/length;
     }
 }

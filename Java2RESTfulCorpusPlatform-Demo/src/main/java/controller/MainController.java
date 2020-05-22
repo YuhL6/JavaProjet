@@ -9,10 +9,13 @@ import javafx.fxml.FXMLLoader;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.input.Dragboard;
+import javafx.scene.layout.AnchorPane;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import model.Document;
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.client.fluent.Request;
 import util.Response;
 
@@ -33,6 +36,10 @@ public class MainController {
     private TextField searchField;
     @FXML
     private TextArea textArea;
+    @FXML
+    private Label label;
+    @FXML
+    private AnchorPane dragPane;
     private ObservableList<Document> observableList = FXCollections.observableArrayList();
     private String lastSearchString;
     private int lastSelectedIndex = -1;
@@ -41,7 +48,7 @@ public class MainController {
     private void initialize() throws IOException {
         try {
             // get information from server, the difficulty is how to transfer object between sockets, try fastjson.
-            String res = Request.Get(endpoint + "/").execute().returnContent().asString();
+            String res = Request.Get(endpoint + "/").execute().returnContent().asString(StandardCharsets.UTF_8);
             Response response = JSON.parseObject(res, Response.class);
             List<Document> list = response.getResult().getList();
             observableList.addAll(list);
@@ -50,6 +57,21 @@ public class MainController {
             Platform.exit();
             return;
         }
+        dragPane.setOnDragEntered(event -> label.setText("Upload"));
+        dragPane.setOnDragExited(event -> {
+            Dragboard dragboard = event.getDragboard();
+            if (dragboard.hasFiles()){
+                List<File> files = dragboard.getFiles();
+                for (File file: files) {
+                    try {
+                        uploadFile(file);
+                    } catch (IOException e) {
+                        continue;
+                    }
+                }
+                label.setText("Drag File Here");
+            }
+        });
         tableView.setItems(observableList);
         nameColumn.setCellValueFactory(cellData -> cellData.getValue().nameProperty());
         showDocumentContent(null);
@@ -131,7 +153,6 @@ public class MainController {
         // the file not found in local host, ask server to search it
         // if in the server, pass the document information to localhost
         String res = Request.Get(endpoint + "/exists/" + document.getHash()).execute().returnContent().asString();
-        System.out.println(res);
         Response response = JSON.parseObject(res, Response.class);
         if (!response.getResult().getExists()){
             showInfo("The file not exists");
@@ -154,44 +175,43 @@ public class MainController {
         stage.showAndWait();
     }
 
-    public double compareCheck(String s1, String s2) throws IOException {
+    public void compareHandle() throws IOException {
         // how to implement in GUI
+        if (chosenList.size() != 2){
+            showInfo("Choose two file");
+            return;
+        }
+        if (chosenList.get(0).getIsComplete() && chosenList.get(1).getIsComplete()){
+            String text1 = chosenList.get(0).getContent();
+            String text2 = chosenList.get(1).getContent();
+            double similarity = simple_similarity(text1, text2);
+            showInfo("Levenshtein Distance: " + StringUtils.getLevenshteinDistance(text1, text2) + "\nSimple Similarity: " +
+                    (String.valueOf(similarity).length() > 4 ? String.valueOf(similarity).substring(0, 4): String.valueOf(similarity)));
+            return;
+        }
+        String s1 = chosenList.get(0).getHash();
+        String s2 = chosenList.get(1).getHash();
         String res = Request.Get(endpoint + "/compare/" + s1 + "/" + s2).execute().returnContent().asString();
-        return 0.0;
+        Response response = JSON.parseObject(res, Response.class);
+        if (response.getCode() == 0)
+            showInfo("Levenshtein Distance: " + response.getResult().getLevenshtein_distance() + "\nSimple Similarity: " +
+                    (response.getResult().getSimple_similarity().toString().length() > 4 ?
+                            response.getResult().getSimple_similarity().toString().substring(0, 4):
+                            response.getResult().getSimple_similarity().toString()));
+        else
+            showInfo(response.getMessage());
     }
 
     @FXML
-    public void uploadFile() throws IOException {
+    public void uploadHandler() throws IOException {
         File file;
-        String fileName;
         try {
             file = fileBrowserHandler();
-            fileName = file.getName();
+            file.exists();
         }catch (Exception e){
             return;
         }
-        byte[] bytes = new byte[(int) file.length()];
-        FXMLLoader fxmlLoader = new FXMLLoader();
-        fxmlLoader.setLocation(getClass().getClassLoader().getResource("AddFile.fxml"));
-        Parent root = fxmlLoader.load();
-        Stage stage = new Stage();
-        AddFileController controller = fxmlLoader.getController();
-        controller.setFileName(fileName);
-        controller.setStage(stage);
-        stage.setScene(new Scene(root));
-        stage.showAndWait();
-        if (controller.getOK()) {
-            FileInputStream fileInputStream = new FileInputStream(file);
-            int size = fileInputStream.read(bytes);
-            if (size == 0){
-                showInfo("None Content is not allowed");
-                return;
-            }
-            Document d = new Document();
-            d.setContent(new String(bytes));
-            d.setName(controller.getFileName());
-            upload(d);
-        }
+        uploadFile(file);
     }
 
     @FXML
@@ -231,19 +251,23 @@ public class MainController {
         DirectoryChooser directoryChooser = new DirectoryChooser();
         directoryChooser.setTitle("Select the path");
         Stage stage = new Stage();
-        String path = directoryChooser.showDialog(stage).getAbsolutePath();
+        String path;
+        try {
+            path = directoryChooser.showDialog(stage).getAbsolutePath();
+        }catch (Exception e){
+            return;
+        }
         String res;
         List<String[]> errors = new ArrayList<>();  // store the error information, the first is filename, second is file hash, third is message
         for (Document d: chosenList){
-            System.out.println(d.getHash());
-            res = Request.Get(endpoint + "/download/" + d.getHash()).execute().returnContent().asString();
-            System.out.println(res);
+            res = Request.Get(endpoint + "/download/" + d.getHash()).execute().returnContent().asString(StandardCharsets.UTF_8);
             File file = new File(path + File.separator + d.getName());
             int i = 1;
             String name = d.getName().substring(0, d.getName().lastIndexOf("."));
             String format = d.getName().substring(d.getName().lastIndexOf("."));
             while (file.exists()){
-                file = new File(path + File.separator + name + i + format);
+                file = new File(path + File.separator + name + "(" + i + ")" + format);
+                i++;
             }
             BufferedWriter writer = new BufferedWriter(new FileWriter(file));
             Response response = JSON.parseObject(res, Response.class);
@@ -262,18 +286,44 @@ public class MainController {
         refresh();
     }
 
-    public void upload(Document d) throws IOException {
+    public void uploadFile(File file) throws IOException {
         // upload file
-        String s = JSON.toJSONString(d);
-        String res = Request.Post(endpoint+"/upload").bodyByteArray(s.getBytes(StandardCharsets.UTF_8)).execute().returnContent().asString();
-        System.out.println(res);
-        Response response = JSON.parseObject(res, Response.class);
-        if (response.getResult().getSuccess()) {
-            showInfo("Upload Successfully");
-            observableList.add(d);
-        }
-        else{
-            showInfo(response.getMessage());
+        byte[] bytes = new byte[(int) file.length()];
+        FXMLLoader fxmlLoader = new FXMLLoader();
+        fxmlLoader.setLocation(getClass().getClassLoader().getResource("AddFile.fxml"));
+        Parent root = fxmlLoader.load();
+        Stage stage = new Stage();
+        AddFileController controller = fxmlLoader.getController();
+        controller.setFileName(file.getName());
+        controller.setStage(stage);
+        stage.setScene(new Scene(root));
+        stage.showAndWait();
+        if (controller.getOK()) {
+            FileInputStream fileInputStream = new FileInputStream(file);
+            int size = fileInputStream.read(bytes);
+            if (size == 0){
+                showInfo("Null Content is not allowed");
+                return;
+            }
+            Document d = new Document();
+            try {
+                d.setContent(bytes);
+            }catch (UnsupportedEncodingException e){
+                showInfo("Format not supported");
+                return;
+            }
+            d.setName(controller.getFileName());
+            String s = JSON.toJSONString(d);
+            String res = Request.Post(endpoint+"/upload").bodyByteArray(s.getBytes(StandardCharsets.UTF_8)).execute().returnContent().asString();
+            System.out.println(res);
+            Response response = JSON.parseObject(res, Response.class);
+            if (response.getResult().getSuccess()) {
+                showInfo("Upload Successfully");
+                observableList.add(d);
+            }
+            else{
+                showInfo(response.getMessage());
+            }
         }
     }
 
@@ -287,6 +337,16 @@ public class MainController {
         }catch (Exception e){
             return null;
         }
+    }
+
+    private static double simple_similarity(String text1, String text2){
+        int length = Math.min(text1.length(), text2.length());
+        int similar = 0;
+        for (int i = 0; i< length; i++){
+            if (text1.toLowerCase().charAt(i) == text2.toLowerCase().charAt(i))
+                similar++;
+        }
+        return similar*1.0/length;
     }
 
 }

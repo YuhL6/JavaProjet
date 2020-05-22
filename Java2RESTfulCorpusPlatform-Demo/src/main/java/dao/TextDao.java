@@ -58,6 +58,11 @@ public class TextDao {
         }
     }
 
+    /**
+     *
+     * @return the list of all Document stored in the database
+     */
+
     public List<Document> getAll(){
         // get information of all documents from databases
         String sql = "select hash, content, fileName from document;";
@@ -66,14 +71,23 @@ public class TextDao {
             PreparedStatement statement = con.prepareStatement(sql);
             ResultSet set = statement.executeQuery();
             while (set.next()){
-                String preview = set.getString(2);
-                list.add(new Document(set.getString(1), preview.substring(0, 100), set.getString(3)));
+                String preview = new String(set.getBytes(2), StandardCharsets.UTF_8);
+                if (preview.length() > 100)
+                    list.add(new Document(set.getString(1), preview.substring(0, 100), set.getString(3), preview.length()));
+                else
+                    list.add(new Document(set.getString(1), preview, set.getString(3), preview.length()));
             }
         } catch (SQLException e) {
             e.printStackTrace();
         }
         return list;
     }
+
+    /**
+     * This is used to check whether the file exists or not
+     * @param hash the hash value of the file
+     * @return the file name in the database
+     */
 
     public String getDocument(String hash){
         /* return the name of the file */
@@ -94,6 +108,12 @@ public class TextDao {
         return name;
     }
 
+    /**
+     *
+     * @param s is hash value of file
+     * @return the content of the file in UTF-8
+     */
+
     public String getDetail(String s){
         // get a detailed content, used when download
         String sql = "select content from document where hash = ?";
@@ -103,7 +123,7 @@ public class TextDao {
             statement.setString(1, s);
             ResultSet set = statement.executeQuery();
             if (set.next())
-                res = String.valueOf(set.getString(1));
+                res = new String(set.getBytes(1), StandardCharsets.UTF_8);
         } catch (SQLException e) {
             e.printStackTrace();
         }
